@@ -66,10 +66,16 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public boolean scanProduct(ScanProductRequest scanProductRequest) {
-        ProductSeries productSeriesDo;
-
-        productSeriesDo = productSeriesRepository.findByProductSeriesUniqueId(scanProductRequest.getProductId().substring(0, 8));
-        if (productSeriesDo == null) {
+        ProductSeries productSeriesDo = new ProductSeries();
+        List<ProductSeries> productSeriesList = productSeriesRepository.findAll();
+        for (ProductSeries productSeries : productSeriesList) {
+            if (scanProductRequest.getProductId().contains(productSeries.getProductSeriesUniqueId())) {
+                if (productSeriesDo.getPointsScored() < productSeries.getPointsScored()) {
+                    productSeriesDo = productSeries;
+                }
+            }
+        }
+        if (productSeriesDo.getProductId() == null) {
             throw new DataConflictException("Product code does not lie in the configured series by admin!!", traceIdentifier);
         }
         if (!productScannedRepository.existsById(scanProductRequest.getProductId())) {

@@ -7,8 +7,6 @@ import javax.transaction.Transactional;
 
 
 public interface ProductSeriesRepository extends JpaRepository<ProductSeries, String> {
-
-    ProductSeries findByProductSeriesUniqueId(String productSeriesUniqueId);
     @Transactional
     void deleteByProductSeriesUniqueId(String productSeriesUniqueId);
 }
