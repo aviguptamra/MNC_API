@@ -1,6 +1,7 @@
 package com.nvc.scanbar.api;
 
 import com.nvc.scanbar.auth.JwtTokenUtil;
+import com.nvc.scanbar.beans.CommonSessionBean;
 import com.nvc.scanbar.beans.user.*;
 import com.nvc.scanbar.common.util.ScanbarUtil;
 import com.nvc.scanbar.exceptions.*;
@@ -30,78 +31,83 @@ public class UserController {
     @Autowired
     JwtTokenUtil jwtTokenUtil;
 
+    @Autowired private CommonSessionBean commonSessionBean;
+
     private static final Logger LOGGER = LoggerFactory.getLogger(UserController.class);
     String traceIdentifier = UUID.randomUUID().toString();
 
     @PostMapping("/register")
-    public ResponseEntity<User> registerUser(@RequestBody UserRequest user){
-        try{
-            if(user.getMobile() == null || user.getMobile().isEmpty() || !ScanbarUtil.isValidMobileString(user.getMobile())) {
+    public ResponseEntity<User> registerUser(@RequestBody UserRequest user) {
+        try {
+            if (user.getMobile() == null || user.getMobile().isEmpty() || !ScanbarUtil.isValidMobileString(user.getMobile())) {
                 throw new ValidationException("Mobile Number format is wrong!", traceIdentifier);
             } else if (user.getEmail() == null || user.getEmail().isEmpty() || !ScanbarUtil.isValidEmailString(user.getEmail())) {
                 throw new ValidationException("Email format is wrong!", traceIdentifier);
             }
             return new ResponseEntity<>(userService.registerUser(user), HttpStatus.CREATED);
         } catch (DataIntegrityViolationException constraintViolationException) {
-            String reason =  ((ConstraintViolationException)constraintViolationException.getCause()).getConstraintName();
-            LOGGER.error(traceIdentifier + " registerUser() " +constraintViolationException);
-            if(reason.toLowerCase().contains("email")) {
+            String reason = ((ConstraintViolationException) constraintViolationException.getCause()).getConstraintName();
+            LOGGER.error(traceIdentifier + " registerUser() " + constraintViolationException);
+            if (reason.toLowerCase().contains("email")) {
                 throw new DataConflictException("Email ID is already registered!", traceIdentifier);
             } else if (reason.toLowerCase().contains("mobile")) {
                 throw new DataConflictException("Mobile is already registered!", traceIdentifier);
             } else {
-                throw new DataConflictException("Registration failed because of constraint violation: "+reason, traceIdentifier);
+                throw new DataConflictException("Registration failed because of constraint violation: " + reason, traceIdentifier);
             }
         } catch (ValidationException e) {
             throw e;
-        } catch (Exception e){
-            LOGGER.error(traceIdentifier + " registerUser() " +e);
+        } catch (Exception e) {
+            LOGGER.error(traceIdentifier + " registerUser() " + e);
             throw new InternalServerError(traceIdentifier);
         }
     }
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> loginUser(@RequestBody LoginRequest request){
+    public ResponseEntity<LoginResponse> loginUser(@RequestBody LoginRequest request) {
         LoginResponse loginResponse = null;
-        try{
+        try {
             final String token = jwtTokenUtil.generateToken(request);
             User userDo = userService.loginUser(request);
-            if(userDo!=null){
                 loginResponse = new LoginResponse();
                 IMapper mapper = new AutoMapper();
                 UserProfile up = mapper.map(userDo, UserProfile.class);
                 loginResponse.setUserProfile(up);
                 loginResponse.setToken(token);
-            }
-            else {
-                throw new NullPointerException();
-            }
-        }catch (AuthException e){
-            LOGGER.error(traceIdentifier + " loginUser() " +e);
-            throw new AuthException(e.getMessage(), traceIdentifier);
-        } catch (Exception e){
-            LOGGER.error(traceIdentifier + " loginUser() " +e);
+
+        } catch (AuthException | ValidationException | DataConflictException e) {
+            LOGGER.error(traceIdentifier + " loginUser() " + e);
+            throw e;
+        } catch (Exception e) {
+            LOGGER.error(traceIdentifier + " loginUser() " + e);
             throw new InternalServerError(traceIdentifier);
         }
         return new ResponseEntity<>(loginResponse, HttpStatus.OK);
     }
+
     @GetMapping("/users")
-    public ResponseEntity<List<UserProfile>> getAllUsers(){
-        try{
-            return new ResponseEntity<>(userService.getAllUsers(), HttpStatus.OK);
-        } catch (NotFoundException e){
+    public ResponseEntity<List<UserProfile>> getAllUsers() {
+        try {
+            if (commonSessionBean.getUser().getUserType().equals("Admin")) {
+                return new ResponseEntity<>(userService.getAllUsers(), HttpStatus.OK);
+            } else {
+                throw new AuthException("You're not authorized for this action", traceIdentifier);
+            }
+
+        } catch (NotFoundException | AuthException e) {
             throw e;
-        } catch (Exception e){
+        } catch (Exception e) {
             throw new InternalServerError(traceIdentifier);
         }
     }
+
     @GetMapping("/{userId}")
-    public ResponseEntity<UserProfile> getUserById(@PathVariable("userId") String userId){
-        try{
+    public ResponseEntity<UserProfile> getUserById(@PathVariable("userId") String userId) {
+        try {
             return new ResponseEntity<>(userService.getUserById(userId), HttpStatus.OK);
-        } catch (NotFoundException e){
+        } catch (NotFoundException e) {
             throw e;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             throw new InternalServerError(traceIdentifier);
         }
@@ -116,6 +122,42 @@ public class UserController {
             throw e;
         } catch (Exception e) {
             e.printStackTrace();
+            throw new InternalServerError(traceIdentifier);
+        }
+    }
+
+    @PostMapping("/forgotPassword")
+    public ResponseEntity<?> forgotPassword(@RequestBody VerificationRequest forgotPasswordRequest) {
+        try {
+            userService.forgotPassword(forgotPasswordRequest);
+            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        } catch (NotFoundException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new InternalServerError(traceIdentifier);
+        }
+    }
+
+    @PostMapping("/resetPassword")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest resetPasswordRequest) {
+        try {
+            userService.resetPassword(resetPasswordRequest);
+            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        } catch (NotFoundException | DataConflictException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new InternalServerError(traceIdentifier);
+        }
+    }
+
+    @PostMapping("verifyMail")
+    public ResponseEntity<?> verifyEmail(@RequestBody VerificationRequest verificationRequest) {
+        try {
+            userService.verifyEmail(verificationRequest);
+            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        } catch (NotFoundException | AuthException e) {
+            throw e;
+        } catch (Exception e) {
             throw new InternalServerError(traceIdentifier);
         }
     }

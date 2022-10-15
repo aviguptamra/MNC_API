@@ -1,14 +1,14 @@
 package com.nvc.scanbar.services;
 
 import com.nvc.scanbar.beans.redeemhistory.RedeemHistoryResponse;
-import com.nvc.scanbar.beans.user.LoginRequest;
-import com.nvc.scanbar.beans.user.UserHistoryResponse;
-import com.nvc.scanbar.beans.user.UserProfile;
-import com.nvc.scanbar.beans.user.UserRequest;
+import com.nvc.scanbar.beans.user.*;
 import com.nvc.scanbar.common.util.ScanbarUtil;
 import com.nvc.scanbar.exceptions.AuthException;
 import com.nvc.scanbar.exceptions.DataConflictException;
 import com.nvc.scanbar.exceptions.NotFoundException;
+import com.nvc.scanbar.exceptions.ValidationException;
+import com.nvc.scanbar.mail.EmailDetails;
+import com.nvc.scanbar.mail.EmailService;
 import com.nvc.scanbar.model.ProductScanned;
 import com.nvc.scanbar.model.User;
 import com.nvc.scanbar.repositories.ProductScannedRepository;
@@ -21,9 +21,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import javax.persistence.EntityNotFoundException;
 import java.time.LocalDateTime;
-import java.util.Date;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -40,6 +38,8 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     ProductScannedRepository productScannedRepository;
+    @Autowired
+    private EmailService emailService;
 
     IMapper mapper = new AutoMapper();
 
@@ -49,6 +49,9 @@ public class UserServiceImpl implements UserService {
     @Override
     public User registerUser(UserRequest user) {
         User userDo = mapper.map(user, User.class);
+        emailService.sendSimpleMail(new EmailDetails(user.getEmail(), user.getOtp(), "OTP to verify email"));
+        userDo.setUserType("Public");
+        userDo.setActive(false);
         userDo.setRegistrationDate(LocalDateTime.now());
         userDo.setLastActive(LocalDateTime.now());
         userDo.setCreatedDate(LocalDateTime.now());
@@ -66,14 +69,15 @@ public class UserServiceImpl implements UserService {
             userDo = userRepository.getUserByMobile(user.getMobile());
             validateLogin(user, userDo);
         } else {
-            throw new AuthException("Either a valid email or mobile is required", traceIdentifier);
+            throw new ValidationException("Either a valid email or mobile is required", traceIdentifier);
         }
-        if (userDo != null && userDo.isActive()) {
+        if (userDo.isActive()) {
             userDo.setLastActive(LocalDateTime.now());
             userRepository.save(userDo);
             return userDo;
         } else {
-            throw new DataConflictException("User not active", traceIdentifier);
+            emailService.sendSimpleMail(new EmailDetails(user.getEmail(), userDo.getOtp(), "OTP to verify email"));
+            throw new DataConflictException(userDo.getEmail()+","+userDo.getOtp(), traceIdentifier);
         }
     }
 
@@ -114,11 +118,56 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    @Override
+    public void forgotPassword(VerificationRequest forgotPasswordRequest) {
+        User user = userRepository.getUserByEmail(forgotPasswordRequest.getEmail());
+        if (user != null) {
+            user.setOtp(forgotPasswordRequest.getOtp());
+            EmailDetails details = new EmailDetails(forgotPasswordRequest.getEmail(), forgotPasswordRequest.getOtp(), "OTP to reset the password");
+            emailService.sendSimpleMail(details);
+            userRepository.save(user);
+        } else {
+            throw new NotFoundException("User not found with given mail", traceIdentifier);
+        }
+    }
+
+    @Override
+    public void resetPassword(ResetPasswordRequest resetPasswordRequest) {
+        User user = userRepository.getUserByEmail(resetPasswordRequest.getEmail());
+        if(user != null) {
+            if(resetPasswordRequest.getOtp().equals(user.getOtp())) {
+                user.setPassword(resetPasswordRequest.getNewPassword());
+                userRepository.save(user);
+            } else {
+                throw new DataConflictException("Provided OTP is incorrect. Please provide the correct one", traceIdentifier);
+            }
+        } else {
+            throw new NotFoundException("User not found with given mail", traceIdentifier);
+        }
+
+    }
+
+    @Override
+    public void verifyEmail(VerificationRequest verificationRequest) {
+        User user = userRepository.getUserByEmail(verificationRequest.getEmail());
+        if(user!=null)
+        {
+            if(user.getOtp().equals(verificationRequest.getOtp())) {
+                user.setActive(true);
+                userRepository.save(user);
+            } else {
+                throw new AuthException("Provided OTP is incorrect. Please provide the correct one", traceIdentifier);
+            }
+        } else {
+            throw new NotFoundException("User was not found with the given Email.", traceIdentifier);
+        }
+    }
+
     private void validateLogin(LoginRequest loginRequest, User userDo) {
         if (userDo == null) {
-            throw new AuthException("User not registered", traceIdentifier);
+            throw new ValidationException("User not registered", traceIdentifier);
         } else if (!userDo.getPassword().equals(loginRequest.getPassword())) {
-            throw new AuthException("Incorrect password", traceIdentifier);
+            throw new ValidationException("Incorrect password", traceIdentifier);
         }
     }
 }

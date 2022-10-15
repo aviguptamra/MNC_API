@@ -27,7 +27,6 @@ public class UserRequest {
     private String state;
     private String district;
     private String pin;
-    private String userType;
     private String latitude;
     private String longitude;
     private String appVersion;
@@ -35,4 +34,5 @@ public class UserRequest {
     private String approverName;
     private String approverEmail;
     private String approverRemarks;
+    private String otp;
 }

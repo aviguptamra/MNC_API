@@ -49,7 +49,7 @@ public class User {
     @Column(nullable = false)
     private String pin;
     @Column(nullable = false)
-    private boolean isActive = true;
+    private boolean isActive = false;
     @Column(nullable = false)
     private String userType;
     @Column(nullable = false)
@@ -69,6 +69,7 @@ public class User {
     private String deviceId;
     @Column(nullable = false)
     private LocalDateTime lastActive;
+    private String otp;
 
     @Id
     @GeneratedValue(generator = "UUID")

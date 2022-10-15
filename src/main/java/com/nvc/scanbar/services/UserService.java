@@ -1,9 +1,6 @@
 package com.nvc.scanbar.services;
 
-import com.nvc.scanbar.beans.user.LoginRequest;
-import com.nvc.scanbar.beans.user.UserHistoryResponse;
-import com.nvc.scanbar.beans.user.UserProfile;
-import com.nvc.scanbar.beans.user.UserRequest;
+import com.nvc.scanbar.beans.user.*;
 import com.nvc.scanbar.model.User;
 
 import java.util.List;
@@ -17,4 +14,10 @@ public interface UserService {
     UserProfile getUserById(String userId);
 
     UserHistoryResponse getUserHistory(String userId);
+
+    void forgotPassword(VerificationRequest forgotPasswordRequest);
+
+    void resetPassword(ResetPasswordRequest resetPasswordRequest);
+
+    void verifyEmail(VerificationRequest verificationRequest);
 }

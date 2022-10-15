@@ -34,4 +34,5 @@ public class UserProfile {
     private String approverEmail;
     private String approverRemarks;
     private LocalDateTime lastActive;
+    private String otp;
 }
