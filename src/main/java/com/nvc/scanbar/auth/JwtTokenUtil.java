@@ -1,6 +1,7 @@
 package com.nvc.scanbar.auth;
 
 import com.nvc.scanbar.beans.user.LoginRequest;
+import com.nvc.scanbar.common.util.ScanbarUtil;
 import com.nvc.scanbar.model.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -27,7 +28,13 @@ public class JwtTokenUtil implements Serializable {
     //retrieve username from jwt token
     LoginRequest getUserFromToken(String token) {
         LoginRequest user = new LoginRequest();
-        user.setEmail(getClaimFromToken(token, Claims::getIssuer));
+        String userId = getClaimFromToken(token, Claims::getIssuer);
+        if (userId != null && !userId.isEmpty() && ScanbarUtil.isValidEmailString(userId)) {
+            user.setEmail(userId);
+        } else if (userId != null && !userId.isEmpty() && ScanbarUtil.isValidMobileString(userId)) {
+            user.setMobile(userId);
+        }
+
 //        user.setUserType(getClaimFromToken(token, Claims::getSubject));
         user.setPassword(getClaimFromToken(token, Claims::getAudience));
         return user;
@@ -51,7 +58,11 @@ public class JwtTokenUtil implements Serializable {
     //generate token for user
     public String generateToken(LoginRequest userDetails) {
         Map<String, Object> claims = new HashMap<>();
-        return doGenerateToken(claims, userDetails.getEmail(), userDetails.getPassword());
+        if (userDetails.getEmail()==null) {
+            return doGenerateToken(claims, userDetails.getMobile(), userDetails.getPassword());
+        } else {
+            return doGenerateToken(claims, userDetails.getEmail(), userDetails.getPassword());
+        }
     }
 
     //check if the token has expired
@@ -77,9 +88,12 @@ public class JwtTokenUtil implements Serializable {
 
     //validate token
     Boolean validateToken(String token, User userDetails) {
-        final String email = getUserFromToken(token).getEmail();
+        String userId = getUserFromToken(token).getEmail();
+        if (userId==null) {
+            userId = getUserFromToken(token).getMobile();
+        }
         final String password = getUserFromToken(token).getPassword();
 //        final String role = getUserFromToken(token).getUserType();
-        return (email.equalsIgnoreCase(userDetails.getEmail()) && !isTokenExpired(token) && password.equals(userDetails.getPassword()));
+        return (userId.equalsIgnoreCase(userDetails.getEmail()) || userId.equalsIgnoreCase(userDetails.getMobile()) && !isTokenExpired(token) && password.equals(userDetails.getPassword()));
     }
 }

@@ -49,14 +49,16 @@ public class UserServiceImpl implements UserService {
     @Override
     public User registerUser(UserRequest user) {
         User userDo = mapper.map(user, User.class);
-        emailService.sendSimpleMail(new EmailDetails(user.getEmail(), user.getOtp(), "OTP to verify email"));
+
         userDo.setUserType("Public");
         userDo.setActive(false);
         userDo.setRegistrationDate(LocalDateTime.now());
         userDo.setLastActive(LocalDateTime.now());
         userDo.setCreatedDate(LocalDateTime.now());
         userDo.setModifiedDate(LocalDateTime.now());
-        return userRepository.save(userDo);
+        userDo = userRepository.save(userDo);
+        emailService.sendSimpleMail(new EmailDetails(user.getEmail(), user.getOtp(), "OTP to verify email"));
+        return userDo;
     }
 
     @Override
